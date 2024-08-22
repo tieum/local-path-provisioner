@@ -1,0 +1,40 @@
+name: Release Charts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'deploy/chart/local-path-provisioner/**'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+      - name: Get latest tag from upstream
+        run: |
+          git remote add upstream https://github.com/rancher/local-path-provisioner.git
+          git fetch --tags upstream
+          latest_tag=$(git tag --sort=committerdate | grep ^v | tail -1)
+          sed -i 's/master-head/'$latest_tag'/' deploy/chart/local-path-provisioner/Chart.yaml
+          echo latest tag: $latest_tag
+          git tag --delete $(git tag)
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1
+        with:
+          charts_dir: deploy/chart/
+
+        env:
+          CR_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
